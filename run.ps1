@@ -16,7 +16,8 @@ function Clean-TempFiles {
         "7z.log",
         "7z_list.error",
         "7z_list.log",
-        "programa.zip"
+        "programa.zip",
+        "programa.rar"
     )
     
     foreach ($file in $filesToClean) {
