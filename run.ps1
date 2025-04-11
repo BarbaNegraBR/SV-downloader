@@ -21,19 +21,28 @@ function Install-7Zip {
     }
 }
 
-# Função para extrair arquivo
-function Extract-Archive {
+# Função para extrair arquivo usando método nativo do PowerShell
+function Extract-File {
     param (
         [string]$archivePath,
         [string]$destination
     )
     
-    if (Test-7Zip) {
-        $7zipPath = "C:\Program Files\7-Zip\7z.exe"
-        $process = Start-Process -FilePath $7zipPath -ArgumentList "x", "-y", "-o$destination", $archivePath -Wait -PassThru
-        return $process.ExitCode -eq 0
+    try {
+        # Tenta primeiro com Expand-Archive nativo
+        Expand-Archive -Path $archivePath -DestinationPath $destination -Force
+        return $true
+    } catch {
+        Write-Host "Método nativo falhou, tentando com 7-Zip..." -ForegroundColor Yellow
+        
+        # Se falhar, tenta com 7-Zip
+        if (Test-Path "C:\Program Files\7-Zip\7z.exe") {
+            $7zip = "C:\Program Files\7-Zip\7z.exe"
+            $process = Start-Process -FilePath $7zip -ArgumentList "x", "-y", "-o`"$destination`"", "`"$archivePath`"" -NoNewWindow -PassThru -Wait
+            return $process.ExitCode -eq 0
+        }
+        return $false
     }
-    return $false
 }
 
 # Cria pasta temporária
@@ -53,17 +62,26 @@ try {
     $url = "https://www.dropbox.com/scl/fi/jave5rw3bbj755ss5c900/servidor-download.rar?dl=1"
     $outputPath = Join-Path $tempFolder "programa.rar"
     
-    # Download com retry
+    # Download com retry e verificação
     $maxRetries = 3
     $retryCount = 0
     $success = $false
     
     while (-not $success -and $retryCount -lt $maxRetries) {
         try {
-            Invoke-WebRequest -Uri $url -OutFile $outputPath -UseBasicParsing
+            # Usa WebClient em vez de Invoke-WebRequest para melhor compatibilidade
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($url, $outputPath)
+            
             if (Test-Path $outputPath) {
-                $success = $true
-                Write-Host "Download concluído!" -ForegroundColor Green
+                $fileSize = (Get-Item $outputPath).Length
+                if ($fileSize -gt 0) {
+                    $success = $true
+                    Write-Host "Download concluído! Tamanho do arquivo: $([math]::Round($fileSize/1MB, 2)) MB" -ForegroundColor Green
+                } else {
+                    Write-Host "Arquivo baixado está vazio, tentando novamente..." -ForegroundColor Yellow
+                    Remove-Item $outputPath -Force
+                }
             }
         } catch {
             $retryCount++
@@ -83,17 +101,30 @@ try {
     $extractPath = Join-Path $tempFolder "extracted"
     New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
     
-    if (Extract-Archive -archivePath $outputPath -destination $extractPath) {
+    # Tenta extrair e verifica o resultado
+    if (Extract-File -archivePath $outputPath -destination $extractPath) {
+        Write-Host "Arquivo extraído com sucesso!" -ForegroundColor Green
+        
         # Procura por executáveis na pasta extraída
         $exeFiles = Get-ChildItem -Path $extractPath -Filter "*.exe" -Recurse
         if ($exeFiles.Count -gt 0) {
+            Write-Host "Executável encontrado: $($exeFiles[0].Name)" -ForegroundColor Green
             Write-Host "Executando programa..." -ForegroundColor Green
             Start-Process $exeFiles[0].FullName
         } else {
+            # Lista os arquivos encontrados para diagnóstico
+            Write-Host "Conteúdo da pasta extraída:" -ForegroundColor Yellow
+            Get-ChildItem -Path $extractPath -Recurse | ForEach-Object {
+                Write-Host " - $($_.FullName)"
+            }
             throw "Nenhum executável encontrado na pasta extraída."
         }
     } else {
-        throw "Erro ao extrair o arquivo."
+        Write-Host "Conteúdo da pasta temporária:" -ForegroundColor Yellow
+        Get-ChildItem -Path $tempFolder -Recurse | ForEach-Object {
+            Write-Host " - $($_.FullName)"
+        }
+        throw "Erro ao extrair o arquivo. Verifique se é um arquivo compactado válido."
     }
     
 } catch {
