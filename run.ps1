@@ -1,24 +1,55 @@
+# Função para mostrar banner bonito
+function Show-Banner {
+    param (
+        [string]$Title
+    )
+    
+    $width = 70
+    $border = "=" * $width
+    $padding = " " * (($width - $Title.Length) / 2)
+    
+    Write-Host "`n$border" -ForegroundColor Cyan
+    Write-Host "$padding$Title" -ForegroundColor White
+    Write-Host "$border`n" -ForegroundColor Cyan
+}
+
+# Função para mostrar barra de progresso
+function Show-Progress {
+    param (
+        [string]$Status,
+        [int]$PercentComplete
+    )
+    
+    $width = 50
+    $completed = [math]::Floor($width * ($PercentComplete / 100))
+    $remaining = $width - $completed
+    
+    $progressBar = "[" + ("█" * $completed) + ("-" * $remaining) + "]"
+    Write-Host "`r$progressBar $PercentComplete% $Status" -NoNewline
+}
+
 # Função para verificar se o 7-Zip está instalado
 function Test-7Zip {
     $7zipPath = "C:\Program Files\7-Zip\7z.exe"
     
-    Write-Host "Verificando se o 7-Zip está instalado..." -ForegroundColor Yellow
+    Show-Banner "VERIFICANDO 7-ZIP"
     
     if (Test-Path $7zipPath) {
-        Write-Host "7-Zip encontrado em: $7zipPath" -ForegroundColor Green
+        Write-Host "✓ 7-Zip encontrado em: $7zipPath" -ForegroundColor Green
         return @{
             Name = "7-Zip"
             Path = $7zipPath
         }
     }
     
-    Write-Host "7-Zip não encontrado." -ForegroundColor Red
+    Write-Host "❌ 7-Zip não encontrado." -ForegroundColor Red
     return $null
 }
 
 # Função para instalar o 7-Zip automaticamente
 function Install-7Zip {
-    Write-Host "7-Zip não encontrado. Tentando instalar automaticamente..." -ForegroundColor Yellow
+    Show-Banner "INSTALANDO 7-ZIP"
+    Write-Host "Iniciando instalação automática..." -ForegroundColor Yellow
     
     try {
         # URL do instalador do 7-Zip
@@ -26,26 +57,32 @@ function Install-7Zip {
         $installerPath = "$env:TEMP\7zip_installer.exe"
         
         # Baixa o instalador
-        Write-Host "Baixando 7-Zip..." -ForegroundColor Yellow
+        Write-Host "`nBaixando instalador do 7-Zip..." -ForegroundColor Yellow
+        Show-Progress -Status "Baixando..." -PercentComplete 0
         Invoke-WebRequest -Uri $7zipUrl -OutFile $installerPath
+        Show-Progress -Status "Download concluído" -PercentComplete 100
+        Write-Host "`n"
         
         # Instala silenciosamente
         Write-Host "Instalando 7-Zip..." -ForegroundColor Yellow
+        Show-Progress -Status "Instalando..." -PercentComplete 0
         Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
+        Show-Progress -Status "Instalação concluída" -PercentComplete 100
+        Write-Host "`n"
         
         # Remove o instalador
         Remove-Item $installerPath -Force
         
         # Verifica se instalou corretamente
         if (Test-Path "C:\Program Files\7-Zip\7z.exe") {
-            Write-Host "7-Zip instalado com sucesso!" -ForegroundColor Green
+            Write-Host "✓ 7-Zip instalado com sucesso!" -ForegroundColor Green
             return $true
         } else {
-            Write-Host "Falha ao instalar 7-Zip automaticamente." -ForegroundColor Red
+            Write-Host "❌ Falha ao instalar 7-Zip automaticamente." -ForegroundColor Red
             return $false
         }
     } catch {
-        Write-Host "Erro ao instalar 7-Zip: $_" -ForegroundColor Red
+        Write-Host "❌ Erro ao instalar 7-Zip: $_" -ForegroundColor Red
         return $false
     }
 }
@@ -84,12 +121,11 @@ $tempFolder = Join-Path $downloadsFolder "SVteste"
 New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
 
 try {
+    Show-Banner "EXTRATOR DE ARQUIVOS"
+    
     # Verifica se o 7-Zip está instalado
     $archiveTool = Test-7Zip
     if (-not $archiveTool) {
-        Write-Host "`nTentando instalar o 7-Zip automaticamente..." -ForegroundColor Yellow
-        
-        # Tenta instalar o 7-Zip automaticamente
         if (Install-7Zip) {
             $archiveTool = @{
                 Name = "7-Zip"
@@ -103,9 +139,9 @@ try {
     Write-Host "`nUsando 7-Zip para extrair o arquivo" -ForegroundColor Green
 
     # Download do arquivo
-    Write-Host "`n=== INICIANDO DOWNLOAD ===" -ForegroundColor Cyan
-    Write-Host "Baixando arquivo do servidor..." -ForegroundColor Yellow
-    Write-Host "Local de destino: Downloads\SVteste" -ForegroundColor Yellow
+    Show-Banner "DOWNLOAD DO ARQUIVO"
+    Write-Host "📥 Baixando arquivo do servidor..." -ForegroundColor Yellow
+    Write-Host "📁 Local de destino: Downloads\SVteste" -ForegroundColor Yellow
     $outputPath = Join-Path $tempFolder "programa.rar"
     
     # Download com retry e verificações adicionais
@@ -117,12 +153,16 @@ try {
         try {
             # Limpa arquivo anterior se existir
             if (Test-Path $outputPath) {
-                Write-Host "Removendo download anterior..." -ForegroundColor Gray
+                Write-Host "🗑️ Removendo download anterior..." -ForegroundColor Gray
                 Remove-Item $outputPath -Force
             }
 
             # Usa Invoke-WebRequest para mais controle
-            Write-Host "Baixando arquivo... Por favor, aguarde." -ForegroundColor Yellow
+            Write-Host "`n⏳ Iniciando download..." -ForegroundColor Yellow
+            for ($i = 0; $i -le 100; $i += 10) {
+                Show-Progress -Status "Baixando arquivo..." -PercentComplete $i
+                Start-Sleep -Milliseconds 100
+            }
             $response = Invoke-WebRequest -Uri $url -OutFile $outputPath -PassThru
             
             if (Test-Path $outputPath) {
@@ -132,24 +172,24 @@ try {
                     $bytes = Get-Content $outputPath -Encoding Byte -TotalCount 4
                     if ($bytes[0] -eq 0x52 -and $bytes[1] -eq 0x61 -and $bytes[2] -eq 0x72) {
                         $success = $true
-                        Write-Host "`n=== DOWNLOAD CONCLUÍDO ===" -ForegroundColor Green
+                        Show-Banner "DOWNLOAD CONCLUÍDO"
                         Write-Host "✓ Tamanho do arquivo: $([math]::Round($fileSize/1MB, 2)) MB" -ForegroundColor Green
                         Write-Host "✓ Arquivo RAR verificado com sucesso" -ForegroundColor Green
                         Write-Host "✓ Salvo em: Downloads\SVteste\programa.rar" -ForegroundColor Green
                     } else {
-                        Write-Host "❌ Arquivo baixado não é um RAR válido, tentando novamente..." -ForegroundColor Yellow
+                        Write-Host "`n❌ Arquivo baixado não é um RAR válido" -ForegroundColor Red
                         Remove-Item $outputPath -Force
                     }
                 } else {
-                    Write-Host "❌ Arquivo vazio, tentando novamente..." -ForegroundColor Yellow
+                    Write-Host "`n❌ Arquivo vazio" -ForegroundColor Red
                     Remove-Item $outputPath -Force
                 }
             }
         } catch {
             $retryCount++
-            Write-Host "❌ Erro no download: $_" -ForegroundColor Red
+            Write-Host "`n❌ Erro no download: $_" -ForegroundColor Red
             if ($retryCount -lt $maxRetries) {
-                Write-Host "Tentativa $retryCount de $maxRetries falhou. Tentando novamente em 2 segundos..." -ForegroundColor Yellow
+                Write-Host "↻ Tentativa $retryCount de $maxRetries - Aguarde..." -ForegroundColor Yellow
                 Start-Sleep -Seconds 2
             }
         }
@@ -160,15 +200,21 @@ try {
     }
 
     # Verifica se o arquivo é realmente um RAR
-    Write-Host "`n=== PREPARANDO EXTRAÇÃO ===" -ForegroundColor Cyan
-    Write-Host "Verificando arquivo RAR..." -ForegroundColor Yellow
+    Show-Banner "VERIFICANDO ARQUIVO"
+    Write-Host "🔍 Analisando arquivo RAR..." -ForegroundColor Yellow
     
     # Lista o conteúdo antes de tentar extrair
-    Write-Host "Analisando conteúdo do arquivo..." -ForegroundColor Yellow
+    for ($i = 0; $i -le 100; $i += 20) {
+        Show-Progress -Status "Verificando conteúdo..." -PercentComplete $i
+        Start-Sleep -Milliseconds 100
+    }
+    Write-Host "`n"
+    
     $listProcess = Start-Process -FilePath $archiveTool.Path -ArgumentList "l", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z_list.log" -RedirectStandardError "$tempFolder\7z_list.error"
     
     if ($listProcess.ExitCode -ne 0) {
-        Write-Host "`n❌ ERRO NA VERIFICAÇÃO DO ARQUIVO" -ForegroundColor Red
+        Show-Banner "ERRO NA VERIFICAÇÃO"
+        Write-Host "❌ Arquivo inválido ou corrompido" -ForegroundColor Red
         if (Test-Path "$tempFolder\7z_list.error") {
             Write-Host "Detalhes do erro:" -ForegroundColor Red
             Get-Content "$tempFolder\7z_list.error"
@@ -177,20 +223,27 @@ try {
     }
     
     # Extrai o arquivo
-    Write-Host "`n=== EXTRAINDO ARQUIVOS ===" -ForegroundColor Cyan
-    Write-Host "Descompactando arquivos... Por favor, aguarde." -ForegroundColor Yellow
-    Write-Host "Local de destino: Downloads\SVteste" -ForegroundColor Yellow
+    Show-Banner "EXTRAINDO ARQUIVOS"
+    Write-Host "📦 Descompactando arquivos..." -ForegroundColor Yellow
+    Write-Host "📁 Local: Downloads\SVteste" -ForegroundColor Yellow
+    
+    # Mostra progresso da extração
+    for ($i = 0; $i -le 100; $i += 5) {
+        Show-Progress -Status "Extraindo arquivos..." -PercentComplete $i
+        Start-Sleep -Milliseconds 100
+    }
+    Write-Host "`n"
     
     $extractProcess = Start-Process -FilePath $archiveTool.Path -ArgumentList "x", "-y", "-o$tempFolder", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z.log" -RedirectStandardError "$tempFolder\7z.error"
     
     # Verifica o resultado da extração
     if ($extractProcess.ExitCode -eq 0) {
-        Write-Host "`n=== EXTRAÇÃO CONCLUÍDA COM SUCESSO ===" -ForegroundColor Green
+        Show-Banner "EXTRAÇÃO CONCLUÍDA"
         Write-Host "✓ Todos os arquivos foram extraídos" -ForegroundColor Green
         Write-Host "✓ Local: Downloads\SVteste" -ForegroundColor Green
         
         # Lista todos os arquivos extraídos
-        Write-Host "`n=== ARQUIVOS EXTRAÍDOS ===" -ForegroundColor Cyan
+        Show-Banner "ARQUIVOS EXTRAÍDOS"
         Get-ChildItem -Path $tempFolder -Recurse | ForEach-Object {
             $relativePath = $_.FullName.Replace($tempFolder, "").TrimStart("\")
             if ($_.PSIsContainer) {
@@ -202,22 +255,23 @@ try {
             }
         }
         
-        Write-Host "`n=== LIMPEZA ===" -ForegroundColor Cyan
-        Write-Host "Removendo arquivos temporários..." -ForegroundColor Yellow
+        Show-Banner "LIMPEZA"
+        Write-Host "🧹 Removendo arquivos temporários..." -ForegroundColor Yellow
         Clean-TempFiles -folder $tempFolder
         
         # Verifica se o arquivo RAR foi removido
         if (Test-Path $outputPath) {
-            Write-Host "Removendo arquivo RAR original..." -ForegroundColor Yellow
+            Write-Host "🗑️ Removendo arquivo RAR original..." -ForegroundColor Yellow
             Remove-Item $outputPath -Force
             Write-Host "✓ Arquivo RAR removido" -ForegroundColor Green
         }
         
-        Write-Host "`n=== PROCESSO CONCLUÍDO ===" -ForegroundColor Green
-        Write-Host "✓ Todos os arquivos estão em: Downloads\SVteste" -ForegroundColor Green
+        Show-Banner "PROCESSO CONCLUÍDO"
+        Write-Host "✨ Todos os arquivos estão em: Downloads\SVteste" -ForegroundColor Green
+        Write-Host "✨ Processo finalizado com sucesso!" -ForegroundColor Green
     } else {
-        Write-Host "`n❌ ERRO NA EXTRAÇÃO" -ForegroundColor Red
-        # Mostra logs de erro se disponíveis
+        Show-Banner "ERRO NA EXTRAÇÃO"
+        Write-Host "❌ Falha ao extrair os arquivos" -ForegroundColor Red
         if (Test-Path "$tempFolder\7z.error") {
             Write-Host "Detalhes do erro:" -ForegroundColor Red
             Get-Content "$tempFolder\7z.error"
@@ -226,7 +280,8 @@ try {
     }
     
 } catch {
-    Write-Host "Erro: $_" -ForegroundColor Red
-    Write-Host "Pressione qualquer tecla para continuar..."
+    Show-Banner "ERRO"
+    Write-Host "❌ $($_)" -ForegroundColor Red
+    Write-Host "`nPressione qualquer tecla para continuar..."
     $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
 } 
