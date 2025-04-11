@@ -126,9 +126,6 @@ try {
         Write-Host "Arquivo extraído com sucesso!" -ForegroundColor Green
         Write-Host "Arquivos extraídos em: $tempFolder" -ForegroundColor Green
         
-        # Limpa arquivos temporários
-        Clean-TempFiles -folder $tempFolder
-        
         # Lista todos os arquivos extraídos
         Write-Host "`nArquivos encontrados na pasta:" -ForegroundColor Yellow
         Get-ChildItem -Path $tempFolder -Recurse | ForEach-Object {
@@ -144,6 +141,17 @@ try {
         
         Write-Host "`nOs arquivos foram extraídos com sucesso para: $tempFolder" -ForegroundColor Green
         Write-Host "Você pode encontrar os arquivos na pasta Downloads\SVteste" -ForegroundColor Yellow
+        
+        # Limpa arquivos temporários após mostrar os arquivos extraídos
+        Write-Host "`nLimpando arquivos temporários..." -ForegroundColor Yellow
+        Clean-TempFiles -folder $tempFolder
+        
+        # Verifica se o arquivo RAR foi removido
+        if (Test-Path $outputPath) {
+            Write-Host "Removendo arquivo RAR..." -ForegroundColor Yellow
+            Remove-Item $outputPath -Force
+            Write-Host "Arquivo RAR removido com sucesso" -ForegroundColor Green
+        }
     } else {
         # Mostra logs de erro se disponíveis
         if (Test-Path "$tempFolder\7z.error") {
