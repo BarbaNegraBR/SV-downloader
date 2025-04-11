@@ -1,7 +1,20 @@
-# Função para verificar se o 7-Zip está instalado
-function Test-7Zip {
-    $7zipPath = "C:\Program Files\7-Zip\7z.exe"
-    return Test-Path $7zipPath
+# Função para verificar se o 7-Zip ou WinRAR está instalado
+function Test-ArchiveTools {
+    $tools = @{
+        "7-Zip" = "C:\Program Files\7-Zip\7z.exe"
+        "WinRAR" = "C:\Program Files\WinRAR\WinRAR.exe"
+    }
+    
+    foreach ($tool in $tools.GetEnumerator()) {
+        if (Test-Path $tool.Value) {
+            return @{
+                Name = $tool.Key
+                Path = $tool.Value
+            }
+        }
+    }
+    
+    return $null
 }
 
 # Função para limpar arquivos temporários
@@ -38,10 +51,13 @@ $tempFolder = Join-Path $downloadsFolder "SVteste"
 New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
 
 try {
-    # Verifica se o 7-Zip está instalado
-    if (-not (Test-7Zip)) {
-        throw "7-Zip não encontrado. Por favor, instale o 7-Zip de www.7-zip.org"
+    # Verifica qual ferramenta de arquivo está instalada
+    $archiveTool = Test-ArchiveTools
+    if (-not $archiveTool) {
+        throw "Nenhuma ferramenta de arquivo encontrada. Por favor, instale o 7-Zip (www.7-zip.org) ou o WinRAR (www.rarlab.com)"
     }
+    
+    Write-Host "Usando $($archiveTool.Name) para extrair o arquivo" -ForegroundColor Yellow
 
     # Download do arquivo
     Write-Host "Baixando arquivo de: $url" -ForegroundColor Yellow
@@ -97,11 +113,15 @@ try {
 
     # Verifica se o arquivo é realmente um RAR
     Write-Host "Verificando arquivo..." -ForegroundColor Yellow
-    $7zip = "C:\Program Files\7-Zip\7z.exe"
     
     # Lista o conteúdo antes de tentar extrair
     Write-Host "Listando conteúdo do arquivo..." -ForegroundColor Yellow
-    $listProcess = Start-Process -FilePath $7zip -ArgumentList "l", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z_list.log" -RedirectStandardError "$tempFolder\7z_list.error"
+    
+    if ($archiveTool.Name -eq "7-Zip") {
+        $listProcess = Start-Process -FilePath $archiveTool.Path -ArgumentList "l", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z_list.log" -RedirectStandardError "$tempFolder\7z_list.error"
+    } else {
+        $listProcess = Start-Process -FilePath $archiveTool.Path -ArgumentList "l", $outputPath -NoNewWindow -PassThru -Wait
+    }
     
     if ($listProcess.ExitCode -ne 0) {
         if (Test-Path "$tempFolder\7z_list.error") {
@@ -118,8 +138,11 @@ try {
     # Extrai o arquivo
     Write-Host "Extraindo arquivo..." -ForegroundColor Yellow
     
-    # Tenta extrair usando comando direto do 7z com tratamento de erros melhorado
-    $extractProcess = Start-Process -FilePath $7zip -ArgumentList "x", "-y", "-o$tempFolder", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z.log" -RedirectStandardError "$tempFolder\7z.error"
+    if ($archiveTool.Name -eq "7-Zip") {
+        $extractProcess = Start-Process -FilePath $archiveTool.Path -ArgumentList "x", "-y", "-o$tempFolder", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z.log" -RedirectStandardError "$tempFolder\7z.error"
+    } else {
+        $extractProcess = Start-Process -FilePath $archiveTool.Path -ArgumentList "x", "-y", "-o$tempFolder", $outputPath -NoNewWindow -PassThru -Wait
+    }
     
     # Verifica o resultado da extração
     if ($extractProcess.ExitCode -eq 0) {
