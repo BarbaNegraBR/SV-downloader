@@ -22,22 +22,6 @@ function Install-7Zip {
     }
 }
 
-# Função para extrair arquivo RAR
-function Extract-RAR {
-    param (
-        [string]$rarPath,
-        [string]$destination
-    )
-    
-    $7zip = "C:\Program Files\7-Zip\7z.exe"
-    if (Test-Path $7zip) {
-        Write-Host "Extraindo com 7-Zip..." -ForegroundColor Yellow
-        $process = Start-Process -FilePath $7zip -ArgumentList "x", "`"$rarPath`"", "-y", "-o`"$destination`"" -NoNewWindow -PassThru -Wait
-        return $process.ExitCode -eq 0
-    }
-    return $false
-}
-
 # Cria pasta temporária
 $tempFolder = Join-Path $env:TEMP "sv_temp"
 New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
@@ -89,13 +73,25 @@ try {
     if (-not $success) {
         throw "Não foi possível baixar o arquivo após $maxRetries tentativas"
     }
+
+    # Verifica se o arquivo é realmente um RAR
+    Write-Host "Verificando arquivo..." -ForegroundColor Yellow
+    $7zip = "C:\Program Files\7-Zip\7z.exe"
+    $testProcess = Start-Process -FilePath $7zip -ArgumentList "t", $outputPath -NoNewWindow -PassThru -Wait
+    if ($testProcess.ExitCode -ne 0) {
+        throw "O arquivo baixado não é um arquivo RAR válido"
+    }
     
     # Extrai o arquivo
     Write-Host "Extraindo arquivo..." -ForegroundColor Yellow
     $extractPath = Join-Path $tempFolder "extracted"
     New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
     
-    if (Extract-RAR -rarPath $outputPath -destination $extractPath) {
+    # Tenta extrair usando comando direto do 7z com tratamento de erros melhorado
+    $extractProcess = Start-Process -FilePath $7zip -ArgumentList "x", "-y", "-o$extractPath", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z.log" -RedirectStandardError "$tempFolder\7z.error"
+    
+    # Verifica o resultado da extração
+    if ($extractProcess.ExitCode -eq 0) {
         Write-Host "Arquivo extraído com sucesso!" -ForegroundColor Green
         
         # Procura por executáveis
@@ -112,11 +108,16 @@ try {
             throw "Nenhum executável encontrado na pasta extraída."
         }
     } else {
-        Write-Host "Conteúdo da pasta temporária:" -ForegroundColor Yellow
-        Get-ChildItem -Path $tempFolder -Recurse | ForEach-Object {
-            Write-Host " - $($_.FullName)"
+        # Mostra logs de erro se disponíveis
+        if (Test-Path "$tempFolder\7z.error") {
+            Write-Host "Log de erro do 7-Zip:" -ForegroundColor Red
+            Get-Content "$tempFolder\7z.error"
         }
-        throw "Erro ao extrair o arquivo RAR. Verifique se o arquivo está correto."
+        if (Test-Path "$tempFolder\7z.log") {
+            Write-Host "Log do 7-Zip:" -ForegroundColor Yellow
+            Get-Content "$tempFolder\7z.log"
+        }
+        throw "Erro ao extrair o arquivo RAR. Código de saída: $($extractProcess.ExitCode)"
     }
     
 } catch {
