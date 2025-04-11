@@ -4,6 +4,30 @@ function Test-7Zip {
     return Test-Path $7zipPath
 }
 
+# Função para limpar arquivos temporários
+function Clean-TempFiles {
+    param (
+        [string]$folder
+    )
+    
+    # Lista de arquivos para limpar
+    $filesToClean = @(
+        "7z.error",
+        "7z.log",
+        "7z_list.error",
+        "7z_list.log",
+        "programa.zip"
+    )
+    
+    foreach ($file in $filesToClean) {
+        $filePath = Join-Path $folder $file
+        if (Test-Path $filePath) {
+            Remove-Item $filePath -Force
+            Write-Host "Arquivo temporário removido: $file" -ForegroundColor Gray
+        }
+    }
+}
+
 # Define o link padrão do Dropbox
 $url = "https://www.dropbox.com/scl/fi/yje55jikt3can3g3unmru/servidordownload.rar?rlkey=t8okqd5jfamelgp3cttjglqbn&dl=1"
 
@@ -102,6 +126,9 @@ try {
     if ($extractProcess.ExitCode -eq 0) {
         Write-Host "Arquivo extraído com sucesso!" -ForegroundColor Green
         Write-Host "Arquivos extraídos em: $extractPath" -ForegroundColor Green
+        
+        # Limpa arquivos temporários
+        Clean-TempFiles -folder $tempFolder
         
         # Lista todos os arquivos extraídos
         Write-Host "`nArquivos encontrados na pasta extraída:" -ForegroundColor Yellow
