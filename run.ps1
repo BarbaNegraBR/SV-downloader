@@ -116,24 +116,22 @@ try {
     
     # Extrai o arquivo
     Write-Host "Extraindo arquivo..." -ForegroundColor Yellow
-    $extractPath = Join-Path $tempFolder "extracted"
-    New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
     
     # Tenta extrair usando comando direto do 7z com tratamento de erros melhorado
-    $extractProcess = Start-Process -FilePath $7zip -ArgumentList "x", "-y", "-o$extractPath", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z.log" -RedirectStandardError "$tempFolder\7z.error"
+    $extractProcess = Start-Process -FilePath $7zip -ArgumentList "x", "-y", "-o$tempFolder", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z.log" -RedirectStandardError "$tempFolder\7z.error"
     
     # Verifica o resultado da extração
     if ($extractProcess.ExitCode -eq 0) {
         Write-Host "Arquivo extraído com sucesso!" -ForegroundColor Green
-        Write-Host "Arquivos extraídos em: $extractPath" -ForegroundColor Green
+        Write-Host "Arquivos extraídos em: $tempFolder" -ForegroundColor Green
         
         # Limpa arquivos temporários
         Clean-TempFiles -folder $tempFolder
         
         # Lista todos os arquivos extraídos
-        Write-Host "`nArquivos encontrados na pasta extraída:" -ForegroundColor Yellow
-        Get-ChildItem -Path $extractPath -Recurse | ForEach-Object {
-            $relativePath = $_.FullName.Replace($extractPath, "").TrimStart("\")
+        Write-Host "`nArquivos encontrados na pasta:" -ForegroundColor Yellow
+        Get-ChildItem -Path $tempFolder -Recurse | ForEach-Object {
+            $relativePath = $_.FullName.Replace($tempFolder, "").TrimStart("\")
             if ($_.PSIsContainer) {
                 Write-Host " [Pasta] $relativePath" -ForegroundColor Cyan
             } else {
@@ -143,8 +141,8 @@ try {
             }
         }
         
-        Write-Host "`nOs arquivos foram extraídos com sucesso para: $extractPath" -ForegroundColor Green
-        Write-Host "Você pode encontrar os arquivos na pasta Downloads\SVteste\extracted" -ForegroundColor Yellow
+        Write-Host "`nOs arquivos foram extraídos com sucesso para: $tempFolder" -ForegroundColor Green
+        Write-Host "Você pode encontrar os arquivos na pasta Downloads\SVteste" -ForegroundColor Yellow
     } else {
         # Mostra logs de erro se disponíveis
         if (Test-Path "$tempFolder\7z.error") {
