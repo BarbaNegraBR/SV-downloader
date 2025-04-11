@@ -1,17 +1,3 @@
-# Verifica se o Python está instalado
-$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-if (-not $pythonCmd) {
-    Write-Host "Python não encontrado. Instalando Python..." -ForegroundColor Yellow
-    # Baixa o instalador do Python
-    $pythonUrl = "https://www.python.org/ftp/python/3.11.0/python-3.11.0-amd64.exe"
-    $installerPath = "$env:TEMP\python-installer.exe"
-    Invoke-WebRequest -Uri $pythonUrl -OutFile $installerPath
-    
-    # Instala o Python silenciosamente
-    Start-Process -FilePath $installerPath -ArgumentList "/quiet", "InstallAllUsers=1", "PrependPath=1" -Wait
-    Remove-Item $installerPath
-}
-
 # Função para verificar se o WinRAR está instalado
 function Test-WinRAR {
     $winrarPath = "C:\Program Files\WinRAR\WinRAR.exe"
@@ -34,7 +20,7 @@ function Extract-RAR {
 }
 
 # Cria pasta temporária
-$tempFolder = Join-Path $env:TEMP "programa_temp"
+$tempFolder = Join-Path $env:TEMP "sv_temp"
 New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
 
 try {
