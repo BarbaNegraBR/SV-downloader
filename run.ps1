@@ -4,24 +4,6 @@ function Test-7Zip {
     return Test-Path $7zipPath
 }
 
-# Função para instalar o 7-Zip silenciosamente
-function Install-7Zip {
-    Write-Host "Instalando 7-Zip..." -ForegroundColor Yellow
-    $7zipUrl = "https://www.7-zip.org/a/7z2301-x64.exe"
-    $installerPath = "$env:TEMP\7zip-installer.exe"
-    
-    try {
-        $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($7zipUrl, $installerPath)
-        Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
-        Remove-Item $installerPath -Force
-        return $true
-    } catch {
-        Write-Host "Erro ao instalar 7-Zip: $_" -ForegroundColor Red
-        return $false
-    }
-}
-
 # Define o link padrão do Dropbox
 $url = "https://www.dropbox.com/scl/fi/yje55jikt3can3g3unmru/servidordownload.rar?rlkey=t8okqd5jfamelgp3cttjglqbn&dl=1"
 
@@ -31,13 +13,9 @@ $tempFolder = Join-Path $downloadsFolder "SVteste"
 New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
 
 try {
-    # Verifica/Instala 7-Zip
+    # Verifica se o 7-Zip está instalado
     if (-not (Test-7Zip)) {
-        Write-Host "7-Zip não encontrado." -ForegroundColor Yellow
-        if (-not (Install-7Zip)) {
-            throw "Não foi possível instalar o 7-Zip. Por favor, instale manualmente de www.7-zip.org"
-        }
-        Write-Host "7-Zip instalado com sucesso!" -ForegroundColor Green
+        throw "7-Zip não encontrado. Por favor, instale o 7-Zip de www.7-zip.org"
     }
 
     # Download do arquivo
@@ -125,19 +103,21 @@ try {
         Write-Host "Arquivo extraído com sucesso!" -ForegroundColor Green
         Write-Host "Arquivos extraídos em: $extractPath" -ForegroundColor Green
         
-        # Procura por executáveis
-        $exeFiles = Get-ChildItem -Path $extractPath -Filter "*.exe" -Recurse
-        if ($exeFiles.Count -gt 0) {
-            Write-Host "Executável encontrado: $($exeFiles[0].Name)" -ForegroundColor Green
-            Write-Host "Executando programa..." -ForegroundColor Green
-            Start-Process $exeFiles[0].FullName
-        } else {
-            Write-Host "Conteúdo da pasta extraída:" -ForegroundColor Yellow
-            Get-ChildItem -Path $extractPath -Recurse | ForEach-Object {
-                Write-Host " - $($_.FullName)"
+        # Lista todos os arquivos extraídos
+        Write-Host "`nArquivos encontrados na pasta extraída:" -ForegroundColor Yellow
+        Get-ChildItem -Path $extractPath -Recurse | ForEach-Object {
+            $relativePath = $_.FullName.Replace($extractPath, "").TrimStart("\")
+            if ($_.PSIsContainer) {
+                Write-Host " [Pasta] $relativePath" -ForegroundColor Cyan
+            } else {
+                $extension = $_.Extension.ToLower()
+                $size = [math]::Round($_.Length/1KB, 2)
+                Write-Host " [Arquivo] $relativePath ($size KB)" -ForegroundColor Green
             }
-            throw "Nenhum executável encontrado na pasta extraída."
         }
+        
+        Write-Host "`nOs arquivos foram extraídos com sucesso para: $extractPath" -ForegroundColor Green
+        Write-Host "Você pode encontrar os arquivos na pasta Downloads\SVteste\extracted" -ForegroundColor Yellow
     } else {
         # Mostra logs de erro se disponíveis
         if (Test-Path "$tempFolder\7z.error") {
