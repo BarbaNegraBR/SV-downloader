@@ -13,21 +13,6 @@ function Show-Banner {
     Write-Host "$border`n" -ForegroundColor Cyan
 }
 
-# Função para mostrar barra de progresso
-function Show-Progress {
-    param (
-        [string]$Status,
-        [int]$PercentComplete
-    )
-    
-    $width = 50
-    $completed = [math]::Floor($width * ($PercentComplete / 100))
-    $remaining = $width - $completed
-    
-    $progressBar = "[" + ("█" * $completed) + ("-" * $remaining) + "]"
-    Write-Host "`r$progressBar $PercentComplete% $Status" -NoNewline
-}
-
 # Função para verificar se o 7-Zip está instalado
 function Test-7Zip {
     $7zipPath = "C:\Program Files\7-Zip\7z.exe"
@@ -58,17 +43,11 @@ function Install-7Zip {
         
         # Baixa o instalador
         Write-Host "`nBaixando instalador do 7-Zip..." -ForegroundColor Yellow
-        Show-Progress -Status "Baixando..." -PercentComplete 0
         Invoke-WebRequest -Uri $7zipUrl -OutFile $installerPath
-        Show-Progress -Status "Download concluído" -PercentComplete 100
-        Write-Host "`n"
         
         # Instala silenciosamente
         Write-Host "Instalando 7-Zip..." -ForegroundColor Yellow
-        Show-Progress -Status "Instalando..." -PercentComplete 0
         Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
-        Show-Progress -Status "Instalação concluída" -PercentComplete 100
-        Write-Host "`n"
         
         # Remove o instalador
         Remove-Item $installerPath -Force
@@ -157,28 +136,10 @@ try {
                 Remove-Item $outputPath -Force
             }
 
-            # Usa Invoke-WebRequest para mais controle
-            Write-Host "`n⏳ Iniciando download..." -ForegroundColor Yellow
-            
-            # Baixa o arquivo mostrando progresso real
+            # Inicia o download
+            Write-Host "`n⏳ Baixando arquivo..." -ForegroundColor Yellow
             $webClient = New-Object System.Net.WebClient
-            $totalBytes = 0
-            $currentBytes = 0
-            
-            $webClient.DownloadProgressChanged = {
-                param($sender, $e)
-                $script:currentBytes = $e.BytesReceived
-                $script:totalBytes = $e.TotalBytesToReceive
-                $percentComplete = [math]::Round(($e.BytesReceived / $e.TotalBytesToReceive) * 100)
-                Show-Progress -Status "Baixando arquivo..." -PercentComplete $percentComplete
-            }
-            
-            $webClient.DownloadFileCompleted = {
-                param($sender, $e)
-                Write-Host "`n"
-            }
-            
-            $webClient.DownloadFileTaskAsync($url, $outputPath).Wait()
+            $webClient.DownloadFile($url, $outputPath)
             
             if (Test-Path $outputPath) {
                 $fileSize = (Get-Item $outputPath).Length
@@ -217,13 +178,6 @@ try {
     # Verifica se o arquivo é realmente um RAR
     Show-Banner "VERIFICANDO ARQUIVO"
     Write-Host "🔍 Analisando arquivo RAR..." -ForegroundColor Yellow
-    
-    # Lista o conteúdo antes de tentar extrair
-    for ($i = 0; $i -le 100; $i += 20) {
-        Show-Progress -Status "Verificando conteúdo..." -PercentComplete $i
-        Start-Sleep -Milliseconds 100
-    }
-    Write-Host "`n"
     
     $listProcess = Start-Process -FilePath $archiveTool.Path -ArgumentList "l", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z_list.log" -RedirectStandardError "$tempFolder\7z_list.error"
     
