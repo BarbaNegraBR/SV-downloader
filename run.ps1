@@ -159,11 +159,26 @@ try {
 
             # Usa Invoke-WebRequest para mais controle
             Write-Host "`n⏳ Iniciando download..." -ForegroundColor Yellow
-            for ($i = 0; $i -le 100; $i += 10) {
-                Show-Progress -Status "Baixando arquivo..." -PercentComplete $i
-                Start-Sleep -Milliseconds 100
+            
+            # Baixa o arquivo mostrando progresso real
+            $webClient = New-Object System.Net.WebClient
+            $totalBytes = 0
+            $currentBytes = 0
+            
+            $webClient.DownloadProgressChanged = {
+                param($sender, $e)
+                $script:currentBytes = $e.BytesReceived
+                $script:totalBytes = $e.TotalBytesToReceive
+                $percentComplete = [math]::Round(($e.BytesReceived / $e.TotalBytesToReceive) * 100)
+                Show-Progress -Status "Baixando arquivo..." -PercentComplete $percentComplete
             }
-            $response = Invoke-WebRequest -Uri $url -OutFile $outputPath -PassThru
+            
+            $webClient.DownloadFileCompleted = {
+                param($sender, $e)
+                Write-Host "`n"
+            }
+            
+            $webClient.DownloadFileTaskAsync($url, $outputPath).Wait()
             
             if (Test-Path $outputPath) {
                 $fileSize = (Get-Item $outputPath).Length
@@ -227,13 +242,7 @@ try {
     Write-Host "📦 Descompactando arquivos..." -ForegroundColor Yellow
     Write-Host "📁 Local: Downloads\SVteste" -ForegroundColor Yellow
     
-    # Mostra progresso da extração
-    for ($i = 0; $i -le 100; $i += 5) {
-        Show-Progress -Status "Extraindo arquivos..." -PercentComplete $i
-        Start-Sleep -Milliseconds 100
-    }
-    Write-Host "`n"
-    
+    # Inicia a extração
     $extractProcess = Start-Process -FilePath $archiveTool.Path -ArgumentList "x", "-y", "-o$tempFolder", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z.log" -RedirectStandardError "$tempFolder\7z.error"
     
     # Verifica o resultado da extração
