@@ -41,21 +41,34 @@ try {
     $url = "https://www.dropbox.com/scl/fi/jave5rw3bbj755ss5c900/servidor-download.rar?dl=1"
     $outputPath = Join-Path $tempFolder "programa.rar"
     
-    # Download com retry
+    # Download com retry e verificações adicionais
     $maxRetries = 3
     $retryCount = 0
     $success = $false
     
     while (-not $success -and $retryCount -lt $maxRetries) {
         try {
-            $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFile($url, $outputPath)
+            # Limpa arquivo anterior se existir
+            if (Test-Path $outputPath) {
+                Remove-Item $outputPath -Force
+            }
+
+            # Usa Invoke-WebRequest para mais controle
+            $response = Invoke-WebRequest -Uri $url -OutFile $outputPath -PassThru
             
             if (Test-Path $outputPath) {
                 $fileSize = (Get-Item $outputPath).Length
                 if ($fileSize -gt 0) {
-                    $success = $true
-                    Write-Host "Download concluído! Tamanho: $([math]::Round($fileSize/1MB, 2)) MB" -ForegroundColor Green
+                    # Verifica os primeiros bytes do arquivo para confirmar que é RAR
+                    $bytes = Get-Content $outputPath -Encoding Byte -TotalCount 4
+                    if ($bytes[0] -eq 0x52 -and $bytes[1] -eq 0x61 -and $bytes[2] -eq 0x72) {
+                        $success = $true
+                        Write-Host "Download concluído! Tamanho: $([math]::Round($fileSize/1MB, 2)) MB" -ForegroundColor Green
+                        Write-Host "Assinatura do arquivo RAR verificada com sucesso" -ForegroundColor Green
+                    } else {
+                        Write-Host "Arquivo baixado não tem assinatura RAR válida, tentando novamente..." -ForegroundColor Yellow
+                        Remove-Item $outputPath -Force
+                    }
                 } else {
                     Write-Host "Arquivo vazio, tentando novamente..." -ForegroundColor Yellow
                     Remove-Item $outputPath -Force
@@ -63,6 +76,7 @@ try {
             }
         } catch {
             $retryCount++
+            Write-Host "Erro no download: $_" -ForegroundColor Red
             if ($retryCount -lt $maxRetries) {
                 Write-Host "Tentativa $retryCount de $maxRetries falhou. Tentando novamente..." -ForegroundColor Yellow
                 Start-Sleep -Seconds 2
@@ -71,14 +85,26 @@ try {
     }
     
     if (-not $success) {
-        throw "Não foi possível baixar o arquivo após $maxRetries tentativas"
+        throw "Não foi possível baixar o arquivo RAR válido após $maxRetries tentativas"
     }
 
     # Verifica se o arquivo é realmente um RAR
     Write-Host "Verificando arquivo..." -ForegroundColor Yellow
     $7zip = "C:\Program Files\7-Zip\7z.exe"
-    $testProcess = Start-Process -FilePath $7zip -ArgumentList "t", $outputPath -NoNewWindow -PassThru -Wait
-    if ($testProcess.ExitCode -ne 0) {
+    
+    # Lista o conteúdo antes de tentar extrair
+    Write-Host "Listando conteúdo do arquivo..." -ForegroundColor Yellow
+    $listProcess = Start-Process -FilePath $7zip -ArgumentList "l", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z_list.log" -RedirectStandardError "$tempFolder\7z_list.error"
+    
+    if ($listProcess.ExitCode -ne 0) {
+        if (Test-Path "$tempFolder\7z_list.error") {
+            Write-Host "Erro ao listar conteúdo:" -ForegroundColor Red
+            Get-Content "$tempFolder\7z_list.error"
+        }
+        if (Test-Path "$tempFolder\7z_list.log") {
+            Write-Host "Log da listagem:" -ForegroundColor Yellow
+            Get-Content "$tempFolder\7z_list.log"
+        }
         throw "O arquivo baixado não é um arquivo RAR válido"
     }
     
