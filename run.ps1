@@ -23,7 +23,7 @@ function Install-7Zip {
 }
 
 # Cria pasta temporária
-$tempFolder = Join-Path $env:TEMP "sv_temp"
+$tempFolder = Join-Path $env:TEMP "SVteste"
 New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
 
 try {
