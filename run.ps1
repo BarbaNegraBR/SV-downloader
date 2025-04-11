@@ -11,7 +11,8 @@ function Install-7Zip {
     $installerPath = "$env:TEMP\7zip-installer.exe"
     
     try {
-        Invoke-WebRequest -Uri $7zipUrl -OutFile $installerPath
+        $webClient = New-Object System.Net.WebClient
+        $webClient.DownloadFile($7zipUrl, $installerPath)
         Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
         Remove-Item $installerPath -Force
         return $true
@@ -21,28 +22,20 @@ function Install-7Zip {
     }
 }
 
-# Função para extrair arquivo usando método nativo do PowerShell
-function Extract-File {
+# Função para extrair arquivo RAR
+function Extract-RAR {
     param (
-        [string]$archivePath,
+        [string]$rarPath,
         [string]$destination
     )
     
-    try {
-        # Tenta primeiro com Expand-Archive nativo
-        Expand-Archive -Path $archivePath -DestinationPath $destination -Force
-        return $true
-    } catch {
-        Write-Host "Método nativo falhou, tentando com 7-Zip..." -ForegroundColor Yellow
-        
-        # Se falhar, tenta com 7-Zip
-        if (Test-Path "C:\Program Files\7-Zip\7z.exe") {
-            $7zip = "C:\Program Files\7-Zip\7z.exe"
-            $process = Start-Process -FilePath $7zip -ArgumentList "x", "-y", "-o`"$destination`"", "`"$archivePath`"" -NoNewWindow -PassThru -Wait
-            return $process.ExitCode -eq 0
-        }
-        return $false
+    $7zip = "C:\Program Files\7-Zip\7z.exe"
+    if (Test-Path $7zip) {
+        Write-Host "Extraindo com 7-Zip..." -ForegroundColor Yellow
+        $process = Start-Process -FilePath $7zip -ArgumentList "x", "`"$rarPath`"", "-y", "-o`"$destination`"" -NoNewWindow -PassThru -Wait
+        return $process.ExitCode -eq 0
     }
+    return $false
 }
 
 # Cria pasta temporária
@@ -52,9 +45,11 @@ New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
 try {
     # Verifica/Instala 7-Zip
     if (-not (Test-7Zip)) {
+        Write-Host "7-Zip não encontrado." -ForegroundColor Yellow
         if (-not (Install-7Zip)) {
-            throw "Não foi possível instalar o 7-Zip"
+            throw "Não foi possível instalar o 7-Zip. Por favor, instale manualmente de www.7-zip.org"
         }
+        Write-Host "7-Zip instalado com sucesso!" -ForegroundColor Green
     }
 
     # Download do arquivo
@@ -62,14 +57,13 @@ try {
     $url = "https://www.dropbox.com/scl/fi/jave5rw3bbj755ss5c900/servidor-download.rar?dl=1"
     $outputPath = Join-Path $tempFolder "programa.rar"
     
-    # Download com retry e verificação
+    # Download com retry
     $maxRetries = 3
     $retryCount = 0
     $success = $false
     
     while (-not $success -and $retryCount -lt $maxRetries) {
         try {
-            # Usa WebClient em vez de Invoke-WebRequest para melhor compatibilidade
             $webClient = New-Object System.Net.WebClient
             $webClient.DownloadFile($url, $outputPath)
             
@@ -77,9 +71,9 @@ try {
                 $fileSize = (Get-Item $outputPath).Length
                 if ($fileSize -gt 0) {
                     $success = $true
-                    Write-Host "Download concluído! Tamanho do arquivo: $([math]::Round($fileSize/1MB, 2)) MB" -ForegroundColor Green
+                    Write-Host "Download concluído! Tamanho: $([math]::Round($fileSize/1MB, 2)) MB" -ForegroundColor Green
                 } else {
-                    Write-Host "Arquivo baixado está vazio, tentando novamente..." -ForegroundColor Yellow
+                    Write-Host "Arquivo vazio, tentando novamente..." -ForegroundColor Yellow
                     Remove-Item $outputPath -Force
                 }
             }
@@ -101,18 +95,16 @@ try {
     $extractPath = Join-Path $tempFolder "extracted"
     New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
     
-    # Tenta extrair e verifica o resultado
-    if (Extract-File -archivePath $outputPath -destination $extractPath) {
+    if (Extract-RAR -rarPath $outputPath -destination $extractPath) {
         Write-Host "Arquivo extraído com sucesso!" -ForegroundColor Green
         
-        # Procura por executáveis na pasta extraída
+        # Procura por executáveis
         $exeFiles = Get-ChildItem -Path $extractPath -Filter "*.exe" -Recurse
         if ($exeFiles.Count -gt 0) {
             Write-Host "Executável encontrado: $($exeFiles[0].Name)" -ForegroundColor Green
             Write-Host "Executando programa..." -ForegroundColor Green
             Start-Process $exeFiles[0].FullName
         } else {
-            # Lista os arquivos encontrados para diagnóstico
             Write-Host "Conteúdo da pasta extraída:" -ForegroundColor Yellow
             Get-ChildItem -Path $extractPath -Recurse | ForEach-Object {
                 Write-Host " - $($_.FullName)"
@@ -124,7 +116,7 @@ try {
         Get-ChildItem -Path $tempFolder -Recurse | ForEach-Object {
             Write-Host " - $($_.FullName)"
         }
-        throw "Erro ao extrair o arquivo. Verifique se é um arquivo compactado válido."
+        throw "Erro ao extrair o arquivo RAR. Verifique se o arquivo está correto."
     }
     
 } catch {
@@ -132,7 +124,7 @@ try {
     Write-Host "Pressione qualquer tecla para continuar..."
     $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
 } finally {
-    # Aguarda um pouco antes de limpar
+    # Aguarda antes de limpar
     Start-Sleep -Seconds 5
     # Limpa arquivos temporários
     Remove-Item -Path $tempFolder -Recurse -Force -ErrorAction SilentlyContinue
