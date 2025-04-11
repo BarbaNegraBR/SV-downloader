@@ -22,8 +22,9 @@ function Install-7Zip {
     }
 }
 
-# Cria pasta temporária
-$tempFolder = Join-Path $env:TEMP "SVteste"
+# Cria pasta SVteste dentro de Downloads
+$downloadsFolder = [Environment]::GetFolderPath("UserProfile") + "\Downloads"
+$tempFolder = Join-Path $downloadsFolder "SVteste"
 New-Item -ItemType Directory -Force -Path $tempFolder | Out-Null
 
 try {
@@ -65,6 +66,7 @@ try {
                         $success = $true
                         Write-Host "Download concluído! Tamanho: $([math]::Round($fileSize/1MB, 2)) MB" -ForegroundColor Green
                         Write-Host "Assinatura do arquivo RAR verificada com sucesso" -ForegroundColor Green
+                        Write-Host "Arquivo salvo em: $outputPath" -ForegroundColor Green
                     } else {
                         Write-Host "Arquivo baixado não tem assinatura RAR válida, tentando novamente..." -ForegroundColor Yellow
                         Remove-Item $outputPath -Force
@@ -119,6 +121,7 @@ try {
     # Verifica o resultado da extração
     if ($extractProcess.ExitCode -eq 0) {
         Write-Host "Arquivo extraído com sucesso!" -ForegroundColor Green
+        Write-Host "Arquivos extraídos em: $extractPath" -ForegroundColor Green
         
         # Procura por executáveis
         $exeFiles = Get-ChildItem -Path $extractPath -Filter "*.exe" -Recurse
@@ -150,9 +153,4 @@ try {
     Write-Host "Erro: $_" -ForegroundColor Red
     Write-Host "Pressione qualquer tecla para continuar..."
     $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-} finally {
-    # Aguarda antes de limpar
-    Start-Sleep -Seconds 5
-    # Limpa arquivos temporários
-    Remove-Item -Path $tempFolder -Recurse -Force -ErrorAction SilentlyContinue
 } 
