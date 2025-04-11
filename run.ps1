@@ -103,7 +103,9 @@ try {
     Write-Host "`nUsando 7-Zip para extrair o arquivo" -ForegroundColor Green
 
     # Download do arquivo
-    Write-Host "Baixando arquivo de: $url" -ForegroundColor Yellow
+    Write-Host "`n=== INICIANDO DOWNLOAD ===" -ForegroundColor Cyan
+    Write-Host "Baixando arquivo do servidor..." -ForegroundColor Yellow
+    Write-Host "Local de destino: Downloads\SVteste" -ForegroundColor Yellow
     $outputPath = Join-Path $tempFolder "programa.rar"
     
     # Download com retry e verificações adicionais
@@ -115,10 +117,12 @@ try {
         try {
             # Limpa arquivo anterior se existir
             if (Test-Path $outputPath) {
+                Write-Host "Removendo download anterior..." -ForegroundColor Gray
                 Remove-Item $outputPath -Force
             }
 
             # Usa Invoke-WebRequest para mais controle
+            Write-Host "Baixando arquivo... Por favor, aguarde." -ForegroundColor Yellow
             $response = Invoke-WebRequest -Uri $url -OutFile $outputPath -PassThru
             
             if (Test-Path $outputPath) {
@@ -128,97 +132,97 @@ try {
                     $bytes = Get-Content $outputPath -Encoding Byte -TotalCount 4
                     if ($bytes[0] -eq 0x52 -and $bytes[1] -eq 0x61 -and $bytes[2] -eq 0x72) {
                         $success = $true
-                        Write-Host "Download concluído! Tamanho: $([math]::Round($fileSize/1MB, 2)) MB" -ForegroundColor Green
-                        Write-Host "Assinatura do arquivo RAR verificada com sucesso" -ForegroundColor Green
-                        Write-Host "Arquivo salvo em: $outputPath" -ForegroundColor Green
+                        Write-Host "`n=== DOWNLOAD CONCLUÍDO ===" -ForegroundColor Green
+                        Write-Host "✓ Tamanho do arquivo: $([math]::Round($fileSize/1MB, 2)) MB" -ForegroundColor Green
+                        Write-Host "✓ Arquivo RAR verificado com sucesso" -ForegroundColor Green
+                        Write-Host "✓ Salvo em: Downloads\SVteste\programa.rar" -ForegroundColor Green
                     } else {
-                        Write-Host "Arquivo baixado não tem assinatura RAR válida, tentando novamente..." -ForegroundColor Yellow
+                        Write-Host "❌ Arquivo baixado não é um RAR válido, tentando novamente..." -ForegroundColor Yellow
                         Remove-Item $outputPath -Force
                     }
                 } else {
-                    Write-Host "Arquivo vazio, tentando novamente..." -ForegroundColor Yellow
+                    Write-Host "❌ Arquivo vazio, tentando novamente..." -ForegroundColor Yellow
                     Remove-Item $outputPath -Force
                 }
             }
         } catch {
             $retryCount++
-            Write-Host "Erro no download: $_" -ForegroundColor Red
+            Write-Host "❌ Erro no download: $_" -ForegroundColor Red
             if ($retryCount -lt $maxRetries) {
-                Write-Host "Tentativa $retryCount de $maxRetries falhou. Tentando novamente..." -ForegroundColor Yellow
+                Write-Host "Tentativa $retryCount de $maxRetries falhou. Tentando novamente em 2 segundos..." -ForegroundColor Yellow
                 Start-Sleep -Seconds 2
             }
         }
     }
     
     if (-not $success) {
-        throw "Não foi possível baixar o arquivo RAR válido após $maxRetries tentativas"
+        throw "❌ Não foi possível baixar o arquivo após $maxRetries tentativas"
     }
 
     # Verifica se o arquivo é realmente um RAR
-    Write-Host "Verificando arquivo..." -ForegroundColor Yellow
+    Write-Host "`n=== PREPARANDO EXTRAÇÃO ===" -ForegroundColor Cyan
+    Write-Host "Verificando arquivo RAR..." -ForegroundColor Yellow
     
     # Lista o conteúdo antes de tentar extrair
-    Write-Host "Listando conteúdo do arquivo..." -ForegroundColor Yellow
+    Write-Host "Analisando conteúdo do arquivo..." -ForegroundColor Yellow
     $listProcess = Start-Process -FilePath $archiveTool.Path -ArgumentList "l", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z_list.log" -RedirectStandardError "$tempFolder\7z_list.error"
     
     if ($listProcess.ExitCode -ne 0) {
+        Write-Host "`n❌ ERRO NA VERIFICAÇÃO DO ARQUIVO" -ForegroundColor Red
         if (Test-Path "$tempFolder\7z_list.error") {
-            Write-Host "Erro ao listar conteúdo:" -ForegroundColor Red
+            Write-Host "Detalhes do erro:" -ForegroundColor Red
             Get-Content "$tempFolder\7z_list.error"
         }
-        if (Test-Path "$tempFolder\7z_list.log") {
-            Write-Host "Log da listagem:" -ForegroundColor Yellow
-            Get-Content "$tempFolder\7z_list.log"
-        }
-        throw "O arquivo baixado não é um arquivo RAR válido"
+        throw "O arquivo não é um RAR válido"
     }
     
     # Extrai o arquivo
-    Write-Host "Extraindo arquivo..." -ForegroundColor Yellow
+    Write-Host "`n=== EXTRAINDO ARQUIVOS ===" -ForegroundColor Cyan
+    Write-Host "Descompactando arquivos... Por favor, aguarde." -ForegroundColor Yellow
+    Write-Host "Local de destino: Downloads\SVteste" -ForegroundColor Yellow
+    
     $extractProcess = Start-Process -FilePath $archiveTool.Path -ArgumentList "x", "-y", "-o$tempFolder", $outputPath -NoNewWindow -PassThru -Wait -RedirectStandardOutput "$tempFolder\7z.log" -RedirectStandardError "$tempFolder\7z.error"
     
     # Verifica o resultado da extração
     if ($extractProcess.ExitCode -eq 0) {
-        Write-Host "Arquivo extraído com sucesso!" -ForegroundColor Green
-        Write-Host "Arquivos extraídos em: $tempFolder" -ForegroundColor Green
+        Write-Host "`n=== EXTRAÇÃO CONCLUÍDA COM SUCESSO ===" -ForegroundColor Green
+        Write-Host "✓ Todos os arquivos foram extraídos" -ForegroundColor Green
+        Write-Host "✓ Local: Downloads\SVteste" -ForegroundColor Green
         
         # Lista todos os arquivos extraídos
-        Write-Host "`nArquivos encontrados na pasta:" -ForegroundColor Yellow
+        Write-Host "`n=== ARQUIVOS EXTRAÍDOS ===" -ForegroundColor Cyan
         Get-ChildItem -Path $tempFolder -Recurse | ForEach-Object {
             $relativePath = $_.FullName.Replace($tempFolder, "").TrimStart("\")
             if ($_.PSIsContainer) {
-                Write-Host " [Pasta] $relativePath" -ForegroundColor Cyan
+                Write-Host " [📁] $relativePath" -ForegroundColor Cyan
             } else {
                 $extension = $_.Extension.ToLower()
                 $size = [math]::Round($_.Length/1KB, 2)
-                Write-Host " [Arquivo] $relativePath ($size KB)" -ForegroundColor Green
+                Write-Host " [📄] $relativePath ($size KB)" -ForegroundColor Green
             }
         }
         
-        Write-Host "`nOs arquivos foram extraídos com sucesso para: $tempFolder" -ForegroundColor Green
-        Write-Host "Você pode encontrar os arquivos na pasta Downloads\SVteste" -ForegroundColor Yellow
-        
-        # Limpa arquivos temporários após mostrar os arquivos extraídos
-        Write-Host "`nLimpando arquivos temporários..." -ForegroundColor Yellow
+        Write-Host "`n=== LIMPEZA ===" -ForegroundColor Cyan
+        Write-Host "Removendo arquivos temporários..." -ForegroundColor Yellow
         Clean-TempFiles -folder $tempFolder
         
         # Verifica se o arquivo RAR foi removido
         if (Test-Path $outputPath) {
-            Write-Host "Removendo arquivo RAR..." -ForegroundColor Yellow
+            Write-Host "Removendo arquivo RAR original..." -ForegroundColor Yellow
             Remove-Item $outputPath -Force
-            Write-Host "Arquivo RAR removido com sucesso" -ForegroundColor Green
+            Write-Host "✓ Arquivo RAR removido" -ForegroundColor Green
         }
+        
+        Write-Host "`n=== PROCESSO CONCLUÍDO ===" -ForegroundColor Green
+        Write-Host "✓ Todos os arquivos estão em: Downloads\SVteste" -ForegroundColor Green
     } else {
+        Write-Host "`n❌ ERRO NA EXTRAÇÃO" -ForegroundColor Red
         # Mostra logs de erro se disponíveis
         if (Test-Path "$tempFolder\7z.error") {
-            Write-Host "Log de erro do 7-Zip:" -ForegroundColor Red
+            Write-Host "Detalhes do erro:" -ForegroundColor Red
             Get-Content "$tempFolder\7z.error"
         }
-        if (Test-Path "$tempFolder\7z.log") {
-            Write-Host "Log do 7-Zip:" -ForegroundColor Yellow
-            Get-Content "$tempFolder\7z.log"
-        }
-        throw "Erro ao extrair o arquivo RAR. Código de saída: $($extractProcess.ExitCode)"
+        throw "Não foi possível extrair o arquivo RAR"
     }
     
 } catch {
