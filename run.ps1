@@ -5,8 +5,12 @@ function Test-ArchiveTools {
         "WinRAR" = "C:\Program Files\WinRAR\WinRAR.exe"
     }
     
+    Write-Host "Verificando programas de extração instalados..." -ForegroundColor Yellow
+    
     foreach ($tool in $tools.GetEnumerator()) {
+        Write-Host "Procurando $($tool.Key)..." -ForegroundColor Gray
         if (Test-Path $tool.Value) {
+            Write-Host "$($tool.Key) encontrado em: $($tool.Value)" -ForegroundColor Green
             return @{
                 Name = $tool.Key
                 Path = $tool.Value
@@ -14,7 +18,42 @@ function Test-ArchiveTools {
         }
     }
     
+    Write-Host "Nenhum programa de extração encontrado." -ForegroundColor Red
     return $null
+}
+
+# Função para instalar o 7-Zip automaticamente
+function Install-7Zip {
+    Write-Host "7-Zip não encontrado. Tentando instalar automaticamente..." -ForegroundColor Yellow
+    
+    try {
+        # URL do instalador do 7-Zip
+        $7zipUrl = "https://www.7-zip.org/a/7z2301-x64.exe"
+        $installerPath = "$env:TEMP\7zip_installer.exe"
+        
+        # Baixa o instalador
+        Write-Host "Baixando 7-Zip..." -ForegroundColor Yellow
+        Invoke-WebRequest -Uri $7zipUrl -OutFile $installerPath
+        
+        # Instala silenciosamente
+        Write-Host "Instalando 7-Zip..." -ForegroundColor Yellow
+        Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
+        
+        # Remove o instalador
+        Remove-Item $installerPath -Force
+        
+        # Verifica se instalou corretamente
+        if (Test-Path "C:\Program Files\7-Zip\7z.exe") {
+            Write-Host "7-Zip instalado com sucesso!" -ForegroundColor Green
+            return $true
+        } else {
+            Write-Host "Falha ao instalar 7-Zip automaticamente." -ForegroundColor Red
+            return $false
+        }
+    } catch {
+        Write-Host "Erro ao instalar 7-Zip: $_" -ForegroundColor Red
+        return $false
+    }
 }
 
 # Função para limpar arquivos temporários
@@ -54,10 +93,22 @@ try {
     # Verifica qual ferramenta de arquivo está instalada
     $archiveTool = Test-ArchiveTools
     if (-not $archiveTool) {
-        throw "Nenhuma ferramenta de arquivo encontrada. Por favor, instale o 7-Zip (www.7-zip.org) ou o WinRAR (www.rarlab.com)"
+        Write-Host "`nNenhum programa de extração encontrado." -ForegroundColor Red
+        Write-Host "Você precisa ter o 7-Zip ou WinRAR instalado." -ForegroundColor Yellow
+        Write-Host "Tentando instalar o 7-Zip automaticamente..." -ForegroundColor Yellow
+        
+        # Tenta instalar o 7-Zip automaticamente
+        if (Install-7Zip) {
+            $archiveTool = @{
+                Name = "7-Zip"
+                Path = "C:\Program Files\7-Zip\7z.exe"
+            }
+        } else {
+            throw "Por favor, instale um dos seguintes programas:`n- 7-Zip (www.7-zip.org)`n- WinRAR (www.rarlab.com)"
+        }
     }
     
-    Write-Host "Usando $($archiveTool.Name) para extrair o arquivo" -ForegroundColor Yellow
+    Write-Host "`nUsando $($archiveTool.Name) para extrair o arquivo" -ForegroundColor Green
 
     # Download do arquivo
     Write-Host "Baixando arquivo de: $url" -ForegroundColor Yellow
