@@ -22,22 +22,8 @@ function Install-7Zip {
     }
 }
 
-# Solicita o link do arquivo RAR
-Write-Host "Cole o link do arquivo RAR do Dropbox:" -ForegroundColor Yellow
-$url = Read-Host
-if (-not $url) {
-    $url = "https://www.dropbox.com/scl/fi/jave5rw3bbj755ss5c900/servidor-download.rar?dl=1"
-    Write-Host "Nenhum link fornecido, usando link padrão" -ForegroundColor Yellow
-}
-
-# Certifica que o link do Dropbox tem ?dl=1 no final
-if ($url -match "dropbox.com" -and -not $url.EndsWith("?dl=1")) {
-    if ($url.Contains("?")) {
-        $url = $url -replace "\?.*$", "?dl=1"
-    } else {
-        $url = $url + "?dl=1"
-    }
-}
+# Define o link padrão do Dropbox
+$url = "https://www.dropbox.com/scl/fi/yje55jikt3can3g3unmru/servidordownload.rar?rlkey=t8okqd5jfamelgp3cttjglqbn&dl=1"
 
 # Cria pasta SVteste dentro de Downloads
 $downloadsFolder = [Environment]::GetFolderPath("UserProfile") + "\Downloads"
